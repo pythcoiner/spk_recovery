@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use tokio::sync::mpsc as tokio_mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 
 use crate::{
     styles,
@@ -67,7 +66,7 @@ struct WalletApp {
     mnemonic_expanded: bool,
     auto_format_descriptor: bool,
     mnemonic_visible: bool,
-    log_receiver: Option<Arc<tokio::sync::Mutex<tokio_mpsc::UnboundedReceiver<String>>>>,
+    log_receiver: Option<Arc<Mutex<mpsc::Receiver<String>>>>,
 }
 
 impl Default for WalletApp {
@@ -180,8 +179,8 @@ impl WalletApp {
                     self.descriptor = format_descriptor(&self.descriptor);
                 }
 
-                let (log_tx, log_rx) = tokio_mpsc::unbounded_channel();
-                self.log_receiver = Some(Arc::new(tokio::sync::Mutex::new(log_rx)));
+                let (log_tx, log_rx) = mpsc::channel();
+                self.log_receiver = Some(Arc::new(Mutex::new(log_rx)));
 
                 let _ = log_tx.send("=== Configuration ===".to_string());
                 let _ = log_tx.send(format!("Electrum: {}:{}", self.ip, self.port));
@@ -203,14 +202,10 @@ impl WalletApp {
 
                 Task::perform(
                     async move {
-                        tokio::task::spawn_blocking(move || {
-                            sync_wallet(
-                                descriptor, ip, port, target, address, max, batch, fee, log_tx,
-                                network,
-                            )
-                        })
-                        .await
-                        .map_err(|e| format!("Task error: {}", e))?
+                        sync_wallet(
+                            descriptor, ip, port, target, address, max, batch, fee, log_tx, network,
+                        )
+                        .map_err(|e| format!("Task error: {}", e))
                     },
                     Message::SyncCompleted,
                 )
@@ -245,11 +240,8 @@ impl WalletApp {
 
                 Task::perform(
                     async move {
-                        tokio::task::spawn_blocking(move || {
-                            sign_psbt(mnemonic, psbt_str, descriptor, network)
-                        })
-                        .await
-                        .map_err(|e| format!("Task error: {}", e))?
+                        sign_psbt(mnemonic, psbt_str, descriptor, network)
+                            .map_err(|e| format!("Task error: {}", e))
                     },
                     Message::SignCompleted,
                 )
@@ -276,9 +268,7 @@ impl WalletApp {
 
                 Task::perform(
                     async move {
-                        tokio::task::spawn_blocking(move || broadcast_psbt(psbt_str, ip, port))
-                            .await
-                            .map_err(|e| format!("Task error: {}", e))?
+                        broadcast_psbt(psbt_str, ip, port).map_err(|e| format!("Task error: {}", e))
                     },
                     Message::BroadcastCompleted,
                 )
@@ -969,11 +959,11 @@ fn format_descriptor(s: &str) -> String {
 }
 
 fn log_stream(
-    receiver: Arc<tokio::sync::Mutex<tokio_mpsc::UnboundedReceiver<String>>>,
+    receiver: Arc<Mutex<mpsc::Receiver<String>>>,
 ) -> impl futures::Stream<Item = Message> {
     futures::stream::unfold(receiver, |receiver| async move {
-        let mut rx = receiver.lock().await;
-        if let Some(log) = rx.recv().await {
+        let rx = receiver.lock().expect("poisoned");
+        if let Ok(log) = rx.recv() {
             drop(rx);
             Some((Message::LogUpdate(log), receiver.clone()))
         } else {
@@ -986,6 +976,7 @@ pub fn run(network: bitcoin::Network) -> Result<(), iced::Error> {
     iced::application(WalletApp::title, WalletApp::update, WalletApp::view)
         .theme(WalletApp::theme)
         .subscription(WalletApp::subscription)
+        .executor::<iced::futures::executor::ThreadPool>()
         .window(window::Settings {
             size: Size::new(860.0, 900.0),
             min_size: Some(Size::new(600.0, 700.0)),

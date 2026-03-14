@@ -1,8 +1,7 @@
 use crate::util::sync::sync_wallet;
 use clap::Parser;
 use miniscript::bitcoin;
-use std::{fs, path::PathBuf, time::SystemTime};
-use tokio::sync::mpsc as tokio_mpsc;
+use std::{fs, path::PathBuf, sync::mpsc, time::SystemTime};
 
 #[derive(Parser, Debug)]
 #[command(name = "spk_recovery")]
@@ -49,9 +48,9 @@ pub fn run(network: bitcoin::Network) -> Result<(), Box<dyn std::error::Error>> 
     let path = args.descriptor.canonicalize()?;
     let descriptor_str = fs::read_to_string(path)?;
 
-    let (log_tx, mut log_rx) = tokio_mpsc::unbounded_channel::<String>();
+    let (log_tx, log_rx) = mpsc::channel::<String>();
     std::thread::spawn(move || {
-        while let Some(msg) = log_rx.blocking_recv() {
+        while let Ok(msg) = log_rx.recv() {
             println!("{}", msg);
         }
     });

@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, str::FromStr, sync::mpsc, time::SystemTime};
 use bwk_tx::{
     transaction::max_input_satisfaction_size, ChangeRecipientProvider, Coin, CoinStatus, KeyChain,
 };
-use tokio::sync::mpsc::UnboundedSender as LogSender;
 
 use bwk_electrum::client::{CoinRequest, CoinResponse};
 use miniscript::{
@@ -26,7 +25,7 @@ pub fn sync_wallet(
     max: String,
     batch: String,
     fee: String,
-    log_tx: LogSender<String>,
+    log_tx: mpsc::Sender<String>,
     network: Network,
 ) -> Result<SyncResult, String> {
     let target_index: u32 = target
@@ -126,7 +125,7 @@ pub fn sync_wallet(
             &spks_index,
             false,
             &mut funded_spks,
-            &log_tx,
+            log_tx.clone(),
         )?;
 
         scan(
@@ -137,7 +136,7 @@ pub fn sync_wallet(
             &spks_index,
             true,
             &mut funded_spks,
-            &log_tx,
+            log_tx.clone(),
         )?;
 
         i += batch;
@@ -255,7 +254,7 @@ fn scan(
     spks_index: &BTreeMap<ScriptBuf, (bool, u32)>,
     is_change: bool,
     funded_spks: &mut Vec<SpkEntry>,
-    log_tx: &LogSender<String>,
+    log_tx: mpsc::Sender<String>,
 ) -> Result<(), String> {
     let len = spks.len();
     let change_str = if is_change { "change" } else { "recv" };
