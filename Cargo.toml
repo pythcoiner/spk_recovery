@@ -12,8 +12,8 @@ clap = { version = "4.5.51", features = ["derive"] }
 futures = "0.3"
 iced = { version = "0.13" }
 miniscript = "12.3.5"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
+# serde = { version = "1.0.228", features = ["derive"] }
+# serde_json = "1.0.145"
 
 [patch.crates-io]
 bitcoin = { git = "https://github.com/pythcoiner/rust-bitcoin.git", rev = "d7998651" }

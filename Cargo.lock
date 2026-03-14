@@ -3616,8 +3616,6 @@ dependencies = [
  "futures",
  "iced",
  "miniscript",
- "serde",
- "serde_json",
 ]
 
 [[package]]

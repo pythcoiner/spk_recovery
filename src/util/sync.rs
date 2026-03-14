@@ -10,7 +10,7 @@ use miniscript::{
     Descriptor, DescriptorPublicKey,
 };
 
-use super::{SpkEntry, SyncResult};
+use super::SyncResult;
 
 type TxMap = BTreeMap<Txid, Transaction>;
 type CoinMap = BTreeMap<OutPoint, Coin>;
@@ -155,7 +155,7 @@ pub fn sync_wallet(
 
     let mut tx_map: TxMap = BTreeMap::new();
     for spk in funded_spks {
-        get_txs_for_spk(&mut sender, &mut receiver, spk.spk, &mut tx_map);
+        get_txs_for_spk(&mut sender, &mut receiver, spk, &mut tx_map);
     }
 
     let _ = log_tx.send(format!("Fetched {} unique transactions", tx_map.len()));
@@ -253,7 +253,7 @@ fn scan(
     spks: Vec<ScriptBuf>,
     spks_index: &BTreeMap<ScriptBuf, (bool, u32)>,
     is_change: bool,
-    funded_spks: &mut Vec<SpkEntry>,
+    funded_spks: &mut Vec<ScriptBuf>,
     log_tx: mpsc::Sender<String>,
 ) -> Result<(), String> {
     let len = spks.len();
@@ -288,11 +288,7 @@ fn scan(
                         elapsed, change_str, index
                     ));
 
-                    funded_spks.push(SpkEntry {
-                        spk: script,
-                        change: is_change,
-                        index: *index,
-                    });
+                    funded_spks.push(script);
                 }
             }
             Ok(())
