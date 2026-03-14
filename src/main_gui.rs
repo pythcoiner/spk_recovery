@@ -1,16 +1,18 @@
 use std::sync::Arc;
 use tokio::sync::mpsc as tokio_mpsc;
 
-use crate::styles;
-use crate::util::{broadcast::broadcast_psbt, sign::sign_psbt, sync::sync_wallet, SyncResult};
-use iced::window;
+use crate::{
+    styles,
+    util::{broadcast::broadcast_psbt, sign::sign_psbt, sync::sync_wallet, SyncResult},
+    NETWORK,
+};
 use iced::{
     alignment,
     font::Font,
     widget::{
         button, checkbox, column, container, row, scrollable, text, text_input, Column, Space,
     },
-    Element, Length, Padding, Size, Subscription, Task, Theme,
+    window, Element, Length, Padding, Size, Subscription, Task, Theme,
 };
 use miniscript::bitcoin::Txid;
 
@@ -194,6 +196,7 @@ impl WalletApp {
                         tokio::task::spawn_blocking(move || {
                             sync_wallet(
                                 descriptor, ip, port, target, address, max, batch, fee, log_tx,
+                                NETWORK,
                             )
                         })
                         .await
@@ -232,7 +235,7 @@ impl WalletApp {
                 Task::perform(
                     async move {
                         tokio::task::spawn_blocking(move || {
-                            sign_psbt(mnemonic, psbt_str, descriptor)
+                            sign_psbt(mnemonic, psbt_str, descriptor, NETWORK)
                         })
                         .await
                         .map_err(|e| format!("Task error: {}", e))?

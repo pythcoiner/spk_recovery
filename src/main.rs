@@ -1,9 +1,10 @@
 use clap::Parser;
+use miniscript::bitcoin;
 
-mod styles;
-mod util;
 mod main_cli;
 mod main_gui;
+mod styles;
+mod util;
 
 #[derive(Parser, Debug)]
 #[command(name = "spk_recovery")]
@@ -13,6 +14,8 @@ struct CliArgs {
     #[arg(long)]
     cli: bool,
 }
+
+const NETWORK: bitcoin::Network = bitcoin::Network::Regtest;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = CliArgs::parse();

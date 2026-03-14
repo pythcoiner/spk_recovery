@@ -1,7 +1,7 @@
-use std::{fs, path::PathBuf, time::SystemTime};
+use crate::{util::sync::sync_wallet, NETWORK};
 use clap::Parser;
+use std::{fs, path::PathBuf, time::SystemTime};
 use tokio::sync::mpsc as tokio_mpsc;
-use crate::util::sync::sync_wallet;
 
 #[derive(Parser, Debug)]
 #[command(name = "spk_recovery")]
@@ -65,6 +65,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         args.batch.to_string(),
         args.fee.to_string(),
         log_tx,
+        NETWORK,
     )?;
 
     println!("\n{} inputs: {}", result.num_inputs, result.total_value);
