@@ -1,16 +1,18 @@
 use std::sync::Arc;
 use tokio::sync::mpsc as tokio_mpsc;
 
+use crate::styles;
+use crate::util::{broadcast::broadcast_psbt, sign::sign_psbt, sync::sync_wallet, SyncResult};
+use iced::window;
 use iced::{
     alignment,
     font::Font,
-    widget::{button, checkbox, column, container, row, scrollable, text, text_input, Column, Space},
+    widget::{
+        button, checkbox, column, container, row, scrollable, text, text_input, Column, Space,
+    },
     Element, Length, Padding, Size, Subscription, Task, Theme,
 };
-use iced::window;
 use miniscript::bitcoin::Txid;
-use crate::util::{sync::sync_wallet, sign::sign_psbt, broadcast::broadcast_psbt, SyncResult};
-use crate::styles;
 
 const GOLOS_TEXT: Font = Font::with_name("Golos Text");
 
@@ -26,6 +28,7 @@ enum Message {
     BatchChanged(String),
     FeeChanged(String),
     MnemonicChanged(String),
+    #[allow(unused)]
     PsbtInputChanged(String),
     SyncClicked,
     SignClicked,
@@ -108,20 +111,50 @@ impl WalletApp {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::DescriptorChanged(value) => { self.descriptor = value; Task::none() }
+            Message::DescriptorChanged(value) => {
+                self.descriptor = value;
+                Task::none()
+            }
             Message::AutoFormatDescriptorToggled(value) => {
                 self.auto_format_descriptor = value;
                 Task::none()
             }
-            Message::IpChanged(value) => { self.ip = value; Task::none() }
-            Message::PortChanged(value) => { self.port = value; Task::none() }
-            Message::TargetChanged(value) => { self.target = value; Task::none() }
-            Message::AddressChanged(value) => { self.address = value; Task::none() }
-            Message::MaxChanged(value) => { self.max = value; Task::none() }
-            Message::BatchChanged(value) => { self.batch = value; Task::none() }
-            Message::FeeChanged(value) => { self.fee = value; Task::none() }
-            Message::MnemonicChanged(value) => { self.mnemonic = value; Task::none() }
-            Message::PsbtInputChanged(value) => { self.psbt_input = value; Task::none() }
+            Message::IpChanged(value) => {
+                self.ip = value;
+                Task::none()
+            }
+            Message::PortChanged(value) => {
+                self.port = value;
+                Task::none()
+            }
+            Message::TargetChanged(value) => {
+                self.target = value;
+                Task::none()
+            }
+            Message::AddressChanged(value) => {
+                self.address = value;
+                Task::none()
+            }
+            Message::MaxChanged(value) => {
+                self.max = value;
+                Task::none()
+            }
+            Message::BatchChanged(value) => {
+                self.batch = value;
+                Task::none()
+            }
+            Message::FeeChanged(value) => {
+                self.fee = value;
+                Task::none()
+            }
+            Message::MnemonicChanged(value) => {
+                self.mnemonic = value;
+                Task::none()
+            }
+            Message::PsbtInputChanged(value) => {
+                self.psbt_input = value;
+                Task::none()
+            }
             Message::SyncClicked => {
                 if self.is_processing {
                     return Task::none();
@@ -139,13 +172,13 @@ impl WalletApp {
                 let (log_tx, log_rx) = tokio_mpsc::unbounded_channel();
                 self.log_receiver = Some(Arc::new(tokio::sync::Mutex::new(log_rx)));
 
-                let _ = log_tx.send(format!("=== Configuration ==="));
+                let _ = log_tx.send("=== Configuration ===".to_string());
                 let _ = log_tx.send(format!("Electrum: {}:{}", self.ip, self.port));
                 let _ = log_tx.send(format!("Target index: {}", self.target));
                 let _ = log_tx.send(format!("Max subscriptions: {}", self.max));
                 let _ = log_tx.send(format!("Batch size: {}", self.batch));
                 let _ = log_tx.send(format!("Fee rate: {} sat/vB", self.fee));
-                let _ = log_tx.send(format!("==================="));
+                let _ = log_tx.send("===================".to_string());
 
                 let descriptor = self.descriptor.clone();
                 let ip = self.ip.clone();
@@ -159,7 +192,9 @@ impl WalletApp {
                 Task::perform(
                     async move {
                         tokio::task::spawn_blocking(move || {
-                            sync_wallet(descriptor, ip, port, target, address, max, batch, fee, log_tx)
+                            sync_wallet(
+                                descriptor, ip, port, target, address, max, batch, fee, log_tx,
+                            )
                         })
                         .await
                         .map_err(|e| format!("Task error: {}", e))?
@@ -227,11 +262,9 @@ impl WalletApp {
 
                 Task::perform(
                     async move {
-                        tokio::task::spawn_blocking(move || {
-                            broadcast_psbt(psbt_str, ip, port)
-                        })
-                        .await
-                        .map_err(|e| format!("Task error: {}", e))?
+                        tokio::task::spawn_blocking(move || broadcast_psbt(psbt_str, ip, port))
+                            .await
+                            .map_err(|e| format!("Task error: {}", e))?
                     },
                     Message::BroadcastCompleted,
                 )
@@ -310,7 +343,10 @@ impl WalletApp {
                 Task::none()
             }
             Message::CopyPsbt => {
-                let psbt = self.synced_psbt.as_ref().map(|r| r.psbt.clone())
+                let psbt = self
+                    .synced_psbt
+                    .as_ref()
+                    .map(|r| r.psbt.clone())
                     .unwrap_or_else(|| self.signed_psbt.clone().unwrap_or_default());
                 if psbt.is_empty() {
                     return Task::none();
@@ -324,10 +360,7 @@ impl WalletApp {
     pub fn subscription(&self) -> Subscription<Message> {
         if let Some(ref receiver) = self.log_receiver {
             let receiver = Arc::clone(receiver);
-            Subscription::run_with_id(
-                "log_stream",
-                log_stream(receiver)
-            )
+            Subscription::run_with_id("log_stream", log_stream(receiver))
         } else {
             Subscription::none()
         }
@@ -376,9 +409,7 @@ impl WalletApp {
         .padding(Padding::new(24.0))
         .width(Length::Fill);
 
-        let scrollable_content = scrollable(content)
-            .width(Length::Fill)
-            .height(Length::Fill);
+        let scrollable_content = scrollable(content).width(Length::Fill).height(Length::Fill);
 
         container(scrollable_content)
             .width(Length::Fill)
@@ -400,7 +431,10 @@ impl WalletApp {
             .on_press(Message::ToggleConfig)
             .padding([4, 8])
             .style(|_theme, status| styles::secondary_button(status)),
-            text("Sync Config").size(20).font(GOLOS_TEXT).color(styles::TEXT),
+            text("Sync Config")
+                .size(20)
+                .font(GOLOS_TEXT)
+                .color(styles::TEXT),
         ]
         .spacing(10)
         .align_y(alignment::Vertical::Center);
@@ -413,85 +447,133 @@ impl WalletApp {
 
         let fields = column![
             row![
-                text("Descriptor:").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
-                text_input("wpkh([fingerprint/84h/0h/0h]xpub.../<0;1>/*)", &self.descriptor)
-                    .on_input(Message::DescriptorChanged)
-                    .width(Length::Fill)
+                text("Descriptor:")
+                    .width(label_width)
                     .font(GOLOS_TEXT)
-                    .padding(10)
-                    .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+                    .color(styles::GREY_DARK),
+                text_input(
+                    "wpkh([fingerprint/84h/0h/0h]xpub.../<0;1>/*)",
+                    &self.descriptor
+                )
+                .on_input(Message::DescriptorChanged)
+                .width(Length::Fill)
+                .font(GOLOS_TEXT)
+                .padding(10)
+                .style(|_theme, status| styles::styled_text_input(status)),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
                 Space::with_width(label_width),
-                checkbox("Auto-format descriptor to include change", self.auto_format_descriptor)
-                    .on_toggle(Message::AutoFormatDescriptorToggled)
-                    .font(GOLOS_TEXT)
-                    .size(16)
-                    .text_size(14),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+                checkbox(
+                    "Auto-format descriptor to include change",
+                    self.auto_format_descriptor
+                )
+                .on_toggle(Message::AutoFormatDescriptorToggled)
+                .font(GOLOS_TEXT)
+                .size(16)
+                .text_size(14),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
-                text("Electrum IP:").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
+                text("Electrum IP:")
+                    .width(label_width)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
                 text_input("ssl://fulcrum.bullbitcoin.com", &self.ip)
                     .on_input(Message::IpChanged)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
                     .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
-                text("Electrum Port:").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
+                text("Electrum Port:")
+                    .width(label_width)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
                 text_input("50002", &self.port)
                     .on_input(Message::PortChanged)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
                     .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
-                text("Target Index:").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
+                text("Target Index:")
+                    .width(label_width)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
                 text_input("10000", &self.target)
                     .on_input(Message::TargetChanged)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
                     .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
-                text("Destination Address:").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
+                text("Destination Address:")
+                    .width(label_width)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
                 text_input("Bitcoin address", &self.address)
                     .on_input(Message::AddressChanged)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
                     .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
-                text("Max Subscriptions:").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
+                text("Max Subscriptions:")
+                    .width(label_width)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
                 text_input("20000", &self.max)
                     .on_input(Message::MaxChanged)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
                     .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
-                text("Batch Size:").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
+                text("Batch Size:")
+                    .width(label_width)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
                 text_input("10000", &self.batch)
                     .on_input(Message::BatchChanged)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
                     .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
             row![
-                text("Fee Rate (sat/vB):").width(label_width).font(GOLOS_TEXT).color(styles::GREY_DARK),
+                text("Fee Rate (sat/vB):")
+                    .width(label_width)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
                 text_input("1", &self.fee)
                     .on_input(Message::FeeChanged)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
                     .style(|_theme, status| styles::styled_text_input(status)),
-            ].spacing(12).align_y(alignment::Vertical::Center),
+            ]
+            .spacing(12)
+            .align_y(alignment::Vertical::Center),
         ]
         .spacing(10);
 
@@ -505,7 +587,11 @@ impl WalletApp {
         .padding([12, 24])
         .width(Length::Fixed(220.0))
         .style(|_theme, status| styles::primary_button(status))
-        .on_press_maybe(if !self.is_processing { Some(Message::SyncClicked) } else { None });
+        .on_press_maybe(if !self.is_processing {
+            Some(Message::SyncClicked)
+        } else {
+            None
+        });
 
         let body = column![
             Space::with_height(4),
@@ -539,7 +625,10 @@ impl WalletApp {
             .on_press(Message::ToggleMnemonic)
             .padding([4, 8])
             .style(|_theme, status| styles::secondary_button(status)),
-            text("Sign & Broadcast").size(20).font(GOLOS_TEXT).color(styles::TEXT),
+            text("Sign & Broadcast")
+                .size(20)
+                .font(GOLOS_TEXT)
+                .color(styles::TEXT),
         ]
         .spacing(10)
         .align_y(alignment::Vertical::Center);
@@ -569,35 +658,64 @@ impl WalletApp {
             if let Some((outputs, fees, inputs_count)) = decode_psbt_outputs(psbt_str) {
                 summary_col = summary_col.push(
                     row![
-                        text("Inputs:").width(Length::Fixed(60.0)).font(GOLOS_TEXT).size(13).color(styles::GREY_DARK),
-                        text(format!("{}", inputs_count)).font(GOLOS_TEXT).size(13).color(styles::TEXT),
-                    ].spacing(12)
+                        text("Inputs:")
+                            .width(Length::Fixed(60.0))
+                            .font(GOLOS_TEXT)
+                            .size(13)
+                            .color(styles::GREY_DARK),
+                        text(format!("{}", inputs_count))
+                            .font(GOLOS_TEXT)
+                            .size(13)
+                            .color(styles::TEXT),
+                    ]
+                    .spacing(12),
                 );
                 summary_col = summary_col.push(Space::with_height(4));
                 summary_col = summary_col.push(
-                    text("Outputs").size(14).font(GOLOS_TEXT).color(styles::GREY_DARK)
+                    text("Outputs")
+                        .size(14)
+                        .font(GOLOS_TEXT)
+                        .color(styles::GREY_DARK),
                 );
                 for (addr, sats) in &outputs {
                     let btc = *sats as f64 / 100_000_000.0;
                     summary_col = summary_col.push(
                         row![
-                            text(addr.clone()).font(Font::MONOSPACE).size(13).color(styles::TEXT),
-                            text(format!("{:.8} BTC", btc)).font(GOLOS_TEXT).size(13).color(styles::TEXT_MUTED),
-                        ].spacing(12)
+                            text(addr.clone())
+                                .font(Font::MONOSPACE)
+                                .size(13)
+                                .color(styles::TEXT),
+                            text(format!("{:.8} BTC", btc))
+                                .font(GOLOS_TEXT)
+                                .size(13)
+                                .color(styles::TEXT_MUTED),
+                        ]
+                        .spacing(12),
                     );
                 }
                 if let Some(fee_sats) = fees {
                     summary_col = summary_col.push(Space::with_height(4));
                     summary_col = summary_col.push(
                         row![
-                            text("Fees:").width(Length::Fixed(60.0)).font(GOLOS_TEXT).size(13).color(styles::GREY_DARK),
-                            text(format!("{} sats", fee_sats)).font(GOLOS_TEXT).size(13).color(styles::TEXT),
-                        ].spacing(12)
+                            text("Fees:")
+                                .width(Length::Fixed(60.0))
+                                .font(GOLOS_TEXT)
+                                .size(13)
+                                .color(styles::GREY_DARK),
+                            text(format!("{} sats", fee_sats))
+                                .font(GOLOS_TEXT)
+                                .size(13)
+                                .color(styles::TEXT),
+                        ]
+                        .spacing(12),
                     );
                 }
             } else {
                 summary_col = summary_col.push(
-                    text("PSBT loaded (unable to decode details)").size(14).font(GOLOS_TEXT).color(styles::GREY_DARK)
+                    text("PSBT loaded (unable to decode details)")
+                        .size(14)
+                        .font(GOLOS_TEXT)
+                        .color(styles::GREY_DARK),
                 );
             }
 
@@ -605,7 +723,9 @@ impl WalletApp {
                 summary_col,
                 Space::with_width(Length::Fill),
                 button(
-                    text("Copy PSBT").font(GOLOS_TEXT).size(14)
+                    text("Copy PSBT")
+                        .font(GOLOS_TEXT)
+                        .size(14)
                         .align_x(alignment::Horizontal::Center),
                 )
                 .padding([10, 16])
@@ -629,9 +749,13 @@ impl WalletApp {
                 .padding(10)
                 .style(|_theme, status| styles::styled_text_input(status)),
             button(
-                text(if self.mnemonic_visible { "HIDE" } else { "SHOW" })
-                    .font(GOLOS_TEXT)
-                    .size(12)
+                text(if self.mnemonic_visible {
+                    "HIDE"
+                } else {
+                    "SHOW"
+                })
+                .font(GOLOS_TEXT)
+                .size(12)
             )
             .on_press(Message::ToggleMnemonicVisibility)
             .padding([10, 14])
@@ -653,7 +777,11 @@ impl WalletApp {
             .padding([12, 24])
             .width(Length::Fixed(160.0))
             .style(|_theme, status| styles::primary_button(status))
-            .on_press_maybe(if !self.is_processing && has_mnemonic { Some(Message::SignClicked) } else { None }),
+            .on_press_maybe(if !self.is_processing && has_mnemonic {
+                Some(Message::SignClicked)
+            } else {
+                None
+            }),
             button(
                 text("Broadcast")
                     .font(GOLOS_TEXT)
@@ -664,7 +792,11 @@ impl WalletApp {
             .padding([12, 24])
             .width(Length::Fixed(160.0))
             .style(|_theme, status| styles::primary_button(status))
-            .on_press_maybe(if !self.is_processing && has_mnemonic { Some(Message::BroadcastClicked) } else { None }),
+            .on_press_maybe(if !self.is_processing && has_mnemonic {
+                Some(Message::BroadcastClicked)
+            } else {
+                None
+            }),
         ]
         .spacing(16);
 
@@ -674,22 +806,35 @@ impl WalletApp {
         // Signed PSBT result
         if let Some(ref signed) = self.signed_psbt {
             body = body.push(Space::with_height(8));
-            body = body.push(text("Signed PSBT").size(14).font(GOLOS_TEXT).color(styles::GREY_DARK));
+            body = body.push(
+                text("Signed PSBT")
+                    .size(14)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
+            );
             body = body.push(
                 text_input("", signed)
                     .width(Length::Fill)
                     .font(GOLOS_TEXT)
                     .padding(10)
-                    .style(|_theme, status| styles::styled_text_input(status))
+                    .style(|_theme, status| styles::styled_text_input(status)),
             );
         }
 
         // Broadcast txid result
         if let Some(ref txid) = self.broadcast_txid {
             body = body.push(Space::with_height(8));
-            body = body.push(text("Transaction ID").size(14).font(GOLOS_TEXT).color(styles::GREY_DARK));
             body = body.push(
-                text(format!("{}", txid)).font(Font::MONOSPACE).size(13).color(styles::TEXT)
+                text("Transaction ID")
+                    .size(14)
+                    .font(GOLOS_TEXT)
+                    .color(styles::GREY_DARK),
+            );
+            body = body.push(
+                text(format!("{}", txid))
+                    .font(Font::MONOSPACE)
+                    .size(13)
+                    .color(styles::TEXT),
             );
         }
 
@@ -705,7 +850,9 @@ impl WalletApp {
             text("Logs").size(18).font(GOLOS_TEXT).color(styles::TEXT),
             Space::with_width(Length::Fill),
             button(
-                text("Clear").size(14).font(GOLOS_TEXT)
+                text("Clear")
+                    .size(14)
+                    .font(GOLOS_TEXT)
                     .align_x(alignment::Horizontal::Center),
             )
             .padding([6, 12])
@@ -719,7 +866,7 @@ impl WalletApp {
                 text("No logs yet...")
                     .size(14)
                     .font(GOLOS_TEXT)
-                    .color(styles::TEXT_MUTED)
+                    .color(styles::TEXT_MUTED),
             )
             .padding(16)
             .width(Length::Fill)
@@ -743,9 +890,9 @@ impl WalletApp {
                 scrollable(
                     container(Column::with_children(log_items).spacing(4))
                         .padding(16)
-                        .width(Length::Fill)
+                        .width(Length::Fill),
                 )
-                .height(Length::Fixed(300.0))
+                .height(Length::Fixed(300.0)),
             )
             .width(Length::Fill)
             .height(Length::Fixed(300.0))
@@ -758,27 +905,39 @@ impl WalletApp {
             .width(Length::Fill)
             .into()
     }
-
 }
 
+#[allow(clippy::type_complexity)]
 fn decode_psbt_outputs(psbt_str: &str) -> Option<(Vec<(String, u64)>, Option<u64>, usize)> {
+    use miniscript::bitcoin::{Address, Network, Psbt};
     use std::str::FromStr;
-    use miniscript::bitcoin::{Psbt, Network, Address};
 
     let psbt = Psbt::from_str(psbt_str.trim()).ok()?;
 
     let inputs_count = psbt.inputs.len();
-    let outputs: Vec<(String, u64)> = psbt.unsigned_tx.output.iter().map(|o| {
-        let addr = Address::from_script(&o.script_pubkey, Network::Bitcoin)
-            .map(|a| a.to_string())
-            .unwrap_or_else(|_| "Non-standard script".to_string());
-        (addr, o.value.to_sat())
-    }).collect();
+    let outputs: Vec<(String, u64)> = psbt
+        .unsigned_tx
+        .output
+        .iter()
+        .map(|o| {
+            let addr = Address::from_script(&o.script_pubkey, Network::Bitcoin)
+                .map(|a| a.to_string())
+                .unwrap_or_else(|_| "Non-standard script".to_string());
+            (addr, o.value.to_sat())
+        })
+        .collect();
 
-    let total_in: Option<u64> = psbt.inputs.iter()
+    let total_in: Option<u64> = psbt
+        .inputs
+        .iter()
         .map(|i| i.witness_utxo.as_ref().map(|u| u.value.to_sat()))
         .try_fold(0u64, |acc, v| v.map(|a| acc + a));
-    let total_out: u64 = psbt.unsigned_tx.output.iter().map(|o| o.value.to_sat()).sum();
+    let total_out: u64 = psbt
+        .unsigned_tx
+        .output
+        .iter()
+        .map(|o| o.value.to_sat())
+        .sum();
     let fees = total_in.map(|ti| ti.saturating_sub(total_out));
 
     Some((outputs, fees, inputs_count))
@@ -786,7 +945,11 @@ fn decode_psbt_outputs(psbt_str: &str) -> Option<(Vec<(String, u64)>, Option<u64
 
 fn format_descriptor(s: &str) -> String {
     // Strip checksum (#...)
-    let s = if let Some(idx) = s.find('#') { &s[..idx] } else { s };
+    let s = if let Some(idx) = s.find('#') {
+        &s[..idx]
+    } else {
+        s
+    };
     // Replace /0/* with /<0;1>/*
     s.replace("/0/*", "/<0;1>/*")
 }

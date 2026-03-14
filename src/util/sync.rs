@@ -1,30 +1,23 @@
-use std::{
-    collections::BTreeMap,
-    str::FromStr,
-    sync::mpsc,
-    time::SystemTime,
-};
+use std::{collections::BTreeMap, str::FromStr, sync::mpsc, time::SystemTime};
 
 use tokio::sync::mpsc::UnboundedSender as LogSender;
 
 use bwk_electrum::client::{CoinRequest, CoinResponse};
 use miniscript::{
     bitcoin::{
-        absolute,
-        psbt::Input,
-        transaction::Version,
-        Address, Amount, Network, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, TxIn, TxOut,
-        Txid, Witness,
+        absolute, psbt::Input, transaction::Version, Address, Amount, Network, OutPoint, Psbt,
+        ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
     },
     psbt::PsbtExt,
     Descriptor, DescriptorPublicKey,
 };
 
-use super::{SyncResult, SpkEntry, Coin};
+use super::{Coin, SpkEntry, SyncResult};
 
 type TxMap = BTreeMap<Txid, Transaction>;
 type CoinMap = BTreeMap<OutPoint, Coin>;
 
+#[allow(clippy::too_many_arguments)]
 pub fn sync_wallet(
     descriptor_str: String,
     ip: String,
@@ -36,7 +29,9 @@ pub fn sync_wallet(
     fee: String,
     log_tx: LogSender<String>,
 ) -> Result<SyncResult, String> {
-    let target: u32 = target.parse().map_err(|e| format!("Invalid target: {}", e))?;
+    let target: u32 = target
+        .parse()
+        .map_err(|e| format!("Invalid target: {}", e))?;
     let mut max: u32 = max.parse().map_err(|e| format!("Invalid max: {}", e))?;
     let batch: u32 = batch.parse().map_err(|e| format!("Invalid batch: {}", e))?;
     let fee: u64 = fee.parse().map_err(|e| format!("Invalid fee: {}", e))?;
@@ -44,8 +39,7 @@ pub fn sync_wallet(
 
     max /= 2;
 
-    let address = Address::from_str(&address)
-        .map_err(|e| format!("Invalid address: {}", e))?;
+    let address = Address::from_str(&address).map_err(|e| format!("Invalid address: {}", e))?;
     if !address.is_valid_for_network(Network::Bitcoin) {
         return Err("Address is for another network".to_string());
     }
@@ -75,7 +69,10 @@ pub fn sync_wallet(
         let elapsed = SystemTime::now().duration_since(start).unwrap();
 
         if i > 0 && i % max == 0 {
-            let _ = log_tx.send(format!("{:?} -- Closing old client and creating new client at index {} --", elapsed, i));
+            let _ = log_tx.send(format!(
+                "{:?} -- Closing old client and creating new client at index {} --",
+                elapsed, i
+            ));
 
             client = bwk_electrum::client::Client::new_local(&ip, port)
                 .map_err(|e| format!("Failed to reconnect: {:?}", e))?;
@@ -93,7 +90,10 @@ pub fn sync_wallet(
         if i % 100 == 0 && i % 1000 != 0 {
             let elapsed = SystemTime::now().duration_since(start).unwrap();
             let pct = i * 100 / target;
-            let _ = log_tx.send(format!("{:?} -- Processing index {} ({}%) --", elapsed, i, pct));
+            let _ = log_tx.send(format!(
+                "{:?} -- Processing index {} ({}%) --",
+                elapsed, i, pct
+            ));
         }
 
         let recv_spks = spks_from(&recv_descriptor, i, batch);
@@ -134,7 +134,10 @@ pub fn sync_wallet(
         i += batch;
     }
 
-    let _ = log_tx.send(format!("Scan complete. Found {} total outputs", funded_spks.len()));
+    let _ = log_tx.send(format!(
+        "Scan complete. Found {} total outputs",
+        funded_spks.len()
+    ));
     let _ = log_tx.send("STATUS:Building Transaction".to_string());
     let _ = log_tx.send("Fetching transactions and building PSBT...".to_string());
 
@@ -255,6 +258,7 @@ pub fn sync_wallet(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn scan(
     start: SystemTime,
     sender: &mut mpsc::Sender<CoinRequest>,
@@ -272,12 +276,18 @@ fn scan(
     sender.send(req).map_err(|e| format!("Send error: {}", e))?;
 
     let elapsed = SystemTime::now().duration_since(start).unwrap();
-    let _ = log_tx.send(format!("{:?} -- Waiting for {} response ({} spks) --", elapsed, change_str, len));
+    let _ = log_tx.send(format!(
+        "{:?} -- Waiting for {} response ({} spks) --",
+        elapsed, change_str, len
+    ));
 
     let resp: CoinResponse = receiver.recv().map_err(|e| format!("Recv error: {}", e))?;
 
     let elapsed = SystemTime::now().duration_since(start).unwrap();
-    let _ = log_tx.send(format!("{:?} -- Received {} response --", elapsed, change_str));
+    let _ = log_tx.send(format!(
+        "{:?} -- Received {} response --",
+        elapsed, change_str
+    ));
 
     match resp {
         CoinResponse::Status(statuses) => {
@@ -286,7 +296,10 @@ fn scan(
                 if status.is_some() {
                     let (_, index) = spks_index.get(&script).ok_or("Script not in index")?;
                     let elapsed = SystemTime::now().duration_since(start).unwrap();
-                    let _ = log_tx.send(format!("{:?} {} coin found at index {}", elapsed, change_str, index));
+                    let _ = log_tx.send(format!(
+                        "{:?} {} coin found at index {}",
+                        elapsed, change_str, index
+                    ));
 
                     funded_spks.push(SpkEntry {
                         spk: script,
@@ -297,12 +310,8 @@ fn scan(
             }
             Ok(())
         }
-        CoinResponse::Error(e) => {
-            Err(format!("Electrum error: {}", e))
-        }
-        _ => {
-            Err("Unexpected response type".to_string())
-        }
+        CoinResponse::Error(e) => Err(format!("Electrum error: {}", e)),
+        _ => Err("Unexpected response type".to_string()),
     }
 }
 

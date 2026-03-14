@@ -3,14 +3,13 @@ use std::str::FromStr;
 use bip39::Mnemonic;
 use miniscript::{
     bitcoin::{
-        bip32::{DerivationPath, Xpriv, Xpub},
+        bip32::Xpriv,
         ecdsa,
         secp256k1::Secp256k1,
         sighash::{EcdsaSighashType, SighashCache},
         Network, Psbt,
     },
     psbt::PsbtExt,
-    Descriptor, DescriptorPublicKey,
 };
 
 pub fn sign_psbt(
@@ -18,11 +17,10 @@ pub fn sign_psbt(
     psbt_str: String,
     _descriptor_str: String,
 ) -> Result<String, String> {
-    let mut psbt = Psbt::from_str(psbt_str.trim())
-        .map_err(|e| format!("Invalid PSBT: {}", e))?;
+    let mut psbt = Psbt::from_str(psbt_str.trim()).map_err(|e| format!("Invalid PSBT: {}", e))?;
 
-    let mnemonic = Mnemonic::from_str(mnemonic.trim())
-        .map_err(|e| format!("Invalid mnemonic: {}", e))?;
+    let mnemonic =
+        Mnemonic::from_str(mnemonic.trim()).map_err(|e| format!("Invalid mnemonic: {}", e))?;
     let seed = mnemonic.to_seed("");
 
     let secp = Secp256k1::new();
@@ -91,35 +89,44 @@ pub fn sign_psbt(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::str::FromStr;
+
+    use bip39::Mnemonic;
     use miniscript::{
         bitcoin::{
-            absolute, psbt::Input, transaction::Version, Amount, OutPoint, ScriptBuf, Sequence,
-            Transaction, TxIn, TxOut, Txid, Witness,
+            absolute,
+            bip32::{DerivationPath, Xpriv, Xpub},
+            key::Secp256k1,
+            transaction::Version,
+            Amount, Network, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid,
+            Witness,
         },
         psbt::PsbtExt,
+        Descriptor, DescriptorPublicKey,
     };
+
+    use crate::util::sign::sign_psbt;
 
     // BIP39 test vector mnemonic — well-known, safe for testing
     const TEST_MNEMONIC: &str =
         "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
     fn build_test_psbt(descriptor_str: &str, recv_index: u32) -> (Psbt, String) {
-        let secp = Secp256k1::new();
-        let descriptor =
-            Descriptor::<DescriptorPublicKey>::from_str(descriptor_str).unwrap();
+        let descriptor = Descriptor::<DescriptorPublicKey>::from_str(descriptor_str).unwrap();
         let single = descriptor.into_single_descriptors().unwrap();
         let recv_desc = &single[0];
         let concrete = recv_desc.at_derivation_index(recv_index).unwrap();
         let spk = concrete.script_pubkey();
 
-        let fake_txid = Txid::from_str(
-            "a15d57094aa7a21a28cb20b59aab8fc7d1149a3bdbcddba9c622e4f5f6a99ece",
-        )
-        .unwrap();
+        let fake_txid =
+            Txid::from_str("a15d57094aa7a21a28cb20b59aab8fc7d1149a3bdbcddba9c622e4f5f6a99ece")
+                .unwrap();
 
         let txin = TxIn {
-            previous_output: OutPoint { txid: fake_txid, vout: 0 },
+            previous_output: OutPoint {
+                txid: fake_txid,
+                vout: 0,
+            },
             script_sig: ScriptBuf::default(),
             sequence: Sequence::ZERO,
             witness: Witness::default(),
